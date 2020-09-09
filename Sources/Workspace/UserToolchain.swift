@@ -207,6 +207,33 @@ public final class UserToolchain: Toolchain {
 
     public static func deriveSwiftCFlags(triple: Triple, destination: Destination) -> [String] {
         guard let sdk = destination.sdk else {
+            if triple.isWindows() {
+              // Windows uses a variable named SDKROOT to determine the root of
+              // the SDK.  This is not the same value as the SDKROOT parameter
+              // in Xcode, however, the value represents a similar concept.
+              if let SDKROOT = ProcessEnv.vars["SDKROOT"], let root = try? AbsolutePath(validating: SDKROOT) {
+                return [
+                    "-sdk", root.pathString,
+
+                    // FIXME: these should not be necessary with the `-sdk`
+                    // parameter.  However, it seems that the layout on Windows
+                    // is not entirely correct yet and the driver does not pick
+                    // up the include search path, library search path, nor
+                    // resource dir.  Workaround that for the time being to
+                    // enable use of swift-package-manager on Windows.
+                    "-I", root.appending(RelativePath("usr/lib/swift")).pathString,
+                    "-L", root.appending(RelativePath("usr/lib/swift/windows")).pathString,
+                    "-resource-dir", root.appending(RelativePath("usr/lib/swift")).pathString,
+
+                    // TODO: detect the version of XCTest
+                    // FIXME: can the user override this by passing in a path to
+                    // a custom XCTest?
+                    "-I", root.appending(RelativePath("../../XCTest-development/usr/lib/swift/windows/\(triple.arch)")).pathString,
+                    "-L", root.appending(RelativePath("../../XCTest-development/usr/lib/swift/windows")).pathString,
+                ]
+              }
+            }
+
             return destination.extraSwiftCFlags
         }
 
